@@ -1,115 +1,195 @@
 <!DOCTYPE html>
-
 <head>
 	<meta charset="UTF-8">
 	<title></title>
-	<link rel='stylesheet' href="{{ url_for('static', filename='css/fullcalendar.css') }}"/>
+	<link rel='stylesheet' href="{{ url_for('static', filename='css/fullcalendar.min.css') }}"/>
 	<link rel='stylesheet' href="{{ url_for('static', filename='css/externalEvents.css') }}"/>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/tooltip.css') }}"/>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/loadScreen.css') }}"/>
 	<script src='{{ url_for("static", filename="js/jquery.min.js") }}'></script>
 	<script src='{{ url_for("static", filename="js/jquery-ui.min.js") }}'></script>
 	<script src='{{ url_for("static", filename="js/moment.min.js") }}'></script>
 	<script src='{{ url_for("static", filename="js/fullcalendar.js") }}'></script>
 </head>
-
 <script>
-	$(function() {
-		
-		// set function for events
-		$("#external-events .fc-event").each(function() {
-	
-			// store data so the calendar knows to render an event upon drop
-			$(this).data("event", {
-				title: $.trim($(this).text()), // use the element's text as the event title
-				stick: true // specifying stick as true will cause the event to be permanently fixed to the calendar
+	var externalEventsList = [];
+	// this method gets data from the database and then parses each task into JSON (javascript object)
+        		// EventObjects can the be created here and stored in an Array
+        		// that will then be used to display the list of unassigned events
+    $.getJSON("{{ url_for('get_request') }}", function(result) {
+        $.each(result, function(i, field){
+			$.each(field, function(x, task){
+				var ob = JSON.parse(task);
+				var event = {
+					id : ob._id,
+					title : ob.content,
+					description: ob.description,
+					start_date : ob.start_date,
+					due_date : ob.due_date,
+					estimated_minutes : ob.estimated_minutes,
+					start: "12:00",
+					duration: "01:00",
+					end: "00:00",
+                	stick: true
+				};
+				var hours = Math.floor(event.estimated_minutes / 60);
+    			var minutes = event.estimated_minutes % 60;
+    			event.duration = hours.toString() + ":" + minutes.toString();
+				$('#external-events-listing').append("<div class='fc-event tooltip' id="+event.id+">"+ event.title +"<span class='tooltiptext'><h3>" + event.title + "</h3><p>Description: </p>" + event.description + "<p>Start Date: </p>" + event.start_date + "<p>Due Date: </p>" + event.due_date + "<p>Priority: </p>" + event.priority + "</span></div>");
+            	$('#'+event.id).data('event', event);
+            	$('#'+event.id).draggable({
+            		zIndex: 999,
+            		revert: true, // will cause the event to go back to its
+            		revertDuration: 0 //  original position after the drag
+        		});
 			});
-
-			// make the event draggable using jQuery UI
-			$(this).draggable({
-				zIndex: 999,
-				revert: true,  // will cause the event to go back to its original position after the drag
-				revertDuration: 0
+        });
+    });
+	$(function() {
+		var placedEventsArray = [];
+		// another getJSON method to grab placed tasks and add them to an Array, this will then be added into the
+		// FullCalender "events:" field.
+		$.getJSON("{{ url_for('get_placed_tasks') }}", function(result){
+			$.each(result, function(i, field){
+				$.each(field, function(x, task){
+					var ob = JSON.parse(task);
+					var event = {
+						id 		: ob._id,
+						title 	: ob.content,
+						description: ob.description,
+						end     : ob.end,
+						start 	: ob.start,
+						all_day : false
+					};
+					placedEventsArray.push(event);
+				});
 			});
 		});
-		
 		// initialize the calendar
 		$('#calendar').fullCalendar({
-		
-			lang: 'en-au',
+        	/*loading: function( isLoading, view ) {
+        	    if(isLoading) {// isLoading gives boolean value
+        	        //show your loader here
+        	        document.getElementById("loader").style.display = "block";
+
+        	    } else {
+        	        //hide your loader here
+        	        document.getElementById("loader").style.display = "none";
+        	    }
+        	} */
+        	lang: 'en-au',
 			weekends: false,
 			allDaySlot: false,
 			minTime: "07:00:00",
 			maxTime: "19:00:00",
 			slotDuration: '00:15:00',
 			slotLabelInterval: '01:00',
-			defaultView: 'agendaWeek',			
-			header: { 
+			defaultView: 'agendaWeek',
+			header: {
 				left: 'prev,next,today', // buttons to change date view
 				center: 'title', // current
 				right: 'month,agendaWeek,agendaDay' // buttons for switching view type
-			}, 			
+			},
 			editable: true,
 			droppable: true, // this allows things to be dropped onto the calendar
             dragRevertDuration: 0,
-			
-			drop: function() { 	// remove after drop function
+			drop: function(date) { 	// remove after drop function
+				var fixed = new Date(date).getTime();
+        		// sends data back after the task has been dropped onto the calender
+        		if ($(this).data("event").end != "00:00") {
+        		    $.ajax({
+  				    	type : 'POST',
+  				    	url : "{{ url_for('post_request') }}",
+  				    	contentType: "application/json",
+  				    	data : JSON.stringify({"id": $(this).data("event").id, "start": fixed, "end": $(this).data("event").end})
+				    });
+				} else {
+				    $.ajax({
+  				    	type : 'POST',
+  				    	url : "{{ url_for('post_request') }}",
+  				    	contentType: "application/json",
+  				    	data : JSON.stringify({"id": $(this).data("event").id, "start": fixed, "end": fixed})
+				    });
+				}
 				$(this).remove();
 			},
-			
-			eventDragStop: function( event, jsEvent, ui, view ) {                
+			eventDrop: function(event, delta){
+				// updates db with new start time
+				$.ajax({
+  					type : 'POST',
+  					url : "{{ url_for('update_task') }}",
+  					contentType: "application/json",
+  					data : JSON.stringify({"id": event.id, "start": event.start.format(), "end": event.end})
+				});
+			},
+			eventResize: function(event, delta){
+			    $.ajax({
+  					type : 'POST',
+  					url : "{{ url_for('update_task') }}",
+  					contentType: "application/json",
+  					data : JSON.stringify({"id": event.id, "start": event.start.format(), "end": event.end.format()})
+				});
+			},
+			eventDragStop: function( event, jsEvent, ui, view ) {
                 if(isEventOverDiv(jsEvent.clientX, jsEvent.clientY)) {
                     $('#calendar').fullCalendar('removeEvents', event._id);
                     var el = $( "<div class='fc-event'>" ).appendTo( '#external-events-listing' ).text( event.title );
                     el.draggable({
                       zIndex: 999,
-                      revert: true, 
-                      revertDuration: 0 
+                      revert: true,
+                      revertDuration: 0
                     });
-                    el.data('event', { 
-						title: event.title, 
-						id :event.id, 
-						stick: true 
+                    el.data('event', {
+                    	id: event.id,
+						title: event.title,
+						start: "12:00",
+						duration: "01:00",
+						stick: true
+					});
+					$.ajax({
+  						type : 'POST',
+  						url : "{{ url_for('post_back_to_external_events') }}",
+  						contentType: "application/json",
+  						data : JSON.stringify({"id": event.id})
 					});
                 }
             }
         });
-
+        setTimeout(function() {
+  				$('#calendar').fullCalendar('addEventSource', placedEventsArray);
+			}, 500);
         var isEventOverDiv = function(x, y) {
             var external_events = $( '#external-events' );
             var offset = external_events.offset();
             offset.right = external_events.width() + offset.left;
             offset.bottom = external_events.height() + offset.top;
-
             // Compare
             if (x >= offset.left
                 && y >= offset.top
                 && x <= offset.right
-                && y <= offset .bottom) { 
-					return true; 
+                && y <= offset .bottom) {
+					return true;
 				} // else
             return false;
         }
 	});
 </script>
+<body>
+	<!--<div id="loader"></div>-->
 
-<body>	
 	<div id="calendar-container" >
 		<div id="calendar"></div>
 	</div>
-	
+
 	<div id='external-events'>
-		<p>
-			<strong>Events</strong>
-		</p>
-		{% for task in tasks %}
-
-			<div class='fc-event'>{{ task["content"] }} <br>
-				<br>
-				start: {{ task["start_date"] }} <br>
-				due: {{ task["due_date"] }}
-			</div>
-		{% endfor %}
-
+		<div id="external-events-listing">
+			<p>
+				<strong>Events</strong>
+			</p>
+		</div>
 	</div>
+	<form method="get" action="{{ url_for('pull_data_from_api') }}">
+		<button>refresh</button>
+	</form>
 </body>
-
-</html>
+<html>

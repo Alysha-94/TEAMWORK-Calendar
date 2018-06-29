@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block content %}
+    <div class="container home-container">
+        <h1 class="text-center">DAILY PLANNER</h1>
+    </div>
+    <div class="container home-links-container">
+        <a href= "{{ url_for('company_login') }}" class="pull-left">Login</a>
+        <a href= "{{ url_for('company_register') }}" class="pull-right">Register</a>
+        {% if string %}
+        <h3>{{ string }}</h3>
+        {% endif %}
+    </div>
+{% endblock %}

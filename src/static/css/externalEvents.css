@@ -7,13 +7,15 @@ html, body {
 #external-events {
   position: fixed;
   z-index: 2;
-  top: 20px;
+  top: 44px;
   left: 20px;
-  width: 100px;
+  width: 250px;
+  height: 500px;
   display: inline;
   padding: 0 10px;
   border: 1px solid #ccc;
   background: #eee;
+  margin: 20px auto;
 }
 
 #external-events .fc-event {
@@ -30,4 +32,8 @@ html, body {
 #calendar {
   max-width: 900px;
   margin: 20px auto;
+}
+
+.id{
+    display: none;
 }

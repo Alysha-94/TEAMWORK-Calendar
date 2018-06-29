@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block content %}
+	<div class="container form-container">
+		<h2 class="text-center">Daily Planner</h2>
+	</div>
+	<div class="login-form userPick">
+		<form action="{{ url_for('pick_user') }}" method="post">
+			<h4 class="text-center">Pick your username</h4>
+			<select name="pick_user" class="selectpicker">
+				{% if user_names %}
+				{% for user in user_names %}
+				<option>{{ user }}</option>
+				{% endfor %}
+				{% endif %}
+			</select>
+			<div class="form-group">
+				<button type="submit" class="btn btn-med btn-block btn-sample" id="submit-button">Submit</button>
+			</div>
+		</form>
+	</div>
+{% endblock %}
